@@ -19,6 +19,7 @@ export interface SavedSession {
   cwd: string
   id?: string // 대화가 있었던 세션만(없으면 새로 연다)
   name: string | null
+  named?: boolean // 사용자가 직접 지은 이름(/clear로 지우지 않는다)
 }
 
 export interface Config {
@@ -44,6 +45,11 @@ export interface Instructions {
   exists: boolean
   text: string
   tooLarge?: boolean
+}
+
+export interface SlashCommand {
+  name: string // 앞의 / 없이(플러그인은 plugin:이름)
+  desc: string
 }
 
 export interface Button {
@@ -110,6 +116,7 @@ export interface Api {
   readInstructions(cwd: string): Promise<Instructions | null>
   saveInstructions(cwd: string, text: string): Promise<boolean>
   instructionsTemplate(role: Role): Promise<string>
+  listCommands(cwd: string): Promise<SlashCommand[]>
   onData(cb: (tab: string, data: string) => void): void
   onExit(cb: (tab: string) => void): void
   onHook(cb: (ev: HookEvent) => void): void

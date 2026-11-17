@@ -3,7 +3,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal, type ITheme } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
-import { SESSION_DEFAULTS as D, type Api, type Button, type Config, type LoadedButtons, type Effort, type HookEvent, type Instructions, type Limit, type Mode, type Model, type Role, type SetupItem, type Usage } from '../shared'
+import { SESSION_DEFAULTS as D, type Api, type Button, type Config, type LoadedButtons, type Effort, type HookEvent, type Instructions, type Limit, type Mode, type Model, type Role, type SetupItem, type SlashCommand, type Usage } from '../shared'
 import './style.css'
 
 declare global {
@@ -30,6 +30,7 @@ interface Session {
   ultracode: boolean
   usage: Usage // 컨텍스트 토큰·캐시 등(상태줄)
   hadPrompt: boolean // 대화가 한 번이라도 있었는가(없으면 --resume할 대화가 없다)
+  named?: boolean // 사용자가 직접 지은 이름이면 /clear로 지우지 않는다
   turnStart: number | null // 지시를 보낼 때의 5시간 한도 사용률(이번 작업이 얼마나 썼는지 계산용)
   turnCost: number | null // 이번(또는 지난) 작업이 쓴 5시간 한도 %
   model: string // sonnet·opus·fable(상태줄 모델 이름으로 바로잡는다)
@@ -173,12 +174,12 @@ function openTerm(s: Session) {
   s.term.onResize(({ cols, rows }) => api.resize(s.tab, cols, rows))
 }
 
-async function openSession(cwd: string, resume?: { id: string; name: string | null }): Promise<boolean> {
+async function openSession(cwd: string, resume?: { id: string; name: string | null; named?: boolean }): Promise<boolean> {
   const tab = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
   $('empty-error').hidden = true
   if (!config.folders.includes(cwd)) saveConfig({ folders: [...config.folders, cwd] }) // 세션을 다 닫아도 폴더는 남긴다
   const s: Session = {
-    tab, cwd, name: resume?.name ?? null, status: 'starting', pct: null, agents: new Map(), closing: false, sessionId: resume?.id,
+    tab, cwd, name: resume?.name ?? null, named: resume?.named, status: 'starting', pct: null, agents: new Map(), closing: false, sessionId: resume?.id,
     mode: hookMode(config.mode), effort: D.effort, ultracode: D.ultracode, usage: {}, hadPrompt: !!resume, turnStart: null, turnCost: null, model: D.model, advisor: D.advisor, ...createTerm(),
   }
   sessions.set(tab, s)
@@ -309,7 +310,7 @@ api.onHook((ev: HookEvent) => {
     case 'SessionStart':
       if (s.status === 'starting') s.status = 'ready'
       if (ev.source === 'clear') {
-        s.name = null
+        if (!s.named) s.name = null
         s.pct = null
       }
       // /resume·/clear 뒤에는 Stop이 오지 않는다. compact는 작업 중 자동 압축일 수 있어 건드리지 않는다.
@@ -403,7 +404,43 @@ function changed(part: string, key: unknown) {
   return true
 }
 
+// 이름 바꾸기: 세션 이름을 더블클릭. 고치는 동안에는 목록을 다시 그리지 않는다(입력이 날아가지 않게).
+let renaming: string | null = null
+function rename(s: Session, span: HTMLElement) {
+  renaming = s.tab
+  const input = h('input', { class: 'rename', value: s.name ?? '', maxlength: 60, 'aria-label': '세션 이름' }) as HTMLInputElement
+  const done = (save: boolean) => {
+    if (renaming !== s.tab) return
+    renaming = null
+    if (save && input.value.trim() !== (s.name ?? '')) {
+      s.name = input.value.trim() || null
+      s.named = !!s.name
+    }
+    delete lastKey.sidebar
+    render()
+  }
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation()
+    if (e.isComposing) return // 한글 조합 중 Enter
+    if (e.key === 'Enter') done(true)
+    else if (e.key === 'Escape') done(false)
+  })
+  input.addEventListener('blur', () => done(true))
+  input.addEventListener('click', (e) => e.stopPropagation())
+  span.replaceWith(input)
+  input.focus()
+  input.select()
+}
+
+// 첫 클릭에 목록이 다시 그려질 수 있어 바뀌지 않는 목록 상자에서 받는다
+$('folders').addEventListener('dblclick', (e) => {
+  const span = (e.target as HTMLElement).closest<HTMLElement>('.session .name')
+  const s = sessions.get(span?.closest<HTMLElement>('[data-tab]')?.dataset.tab ?? '')
+  if (span && s) rename(s, span)
+})
+
 function renderSidebar() {
+  if (renaming) return
   const list = [...sessions.values()]
   if (!changed('sidebar', [active, config.folders, list.map((s) => [s.tab, s.cwd, s.name, s.status])])) return
   const groups = new Map<string, Session[]>(config.folders.map((f) => [f, []])) // 세션이 없는 폴더도 남긴다
@@ -444,7 +481,7 @@ function renderSidebar() {
               tabindex: 0,
               'data-tab': s.tab,
               'aria-current': s.tab === active ? 'true' : false,
-              onclick: () => activate(s.tab),
+              onclick: (e: MouseEvent) => e.detail < 2 && activate(s.tab), // 더블클릭(이름 바꾸기)의 두 번째 클릭은 터미널로 포커스를 넘기지 않는다
               onkeydown: (e: KeyboardEvent) => {
                 if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
                 e.preventDefault()
@@ -452,7 +489,7 @@ function renderSidebar() {
               },
             },
             h('i', { class: `dot ${s.status}` }),
-            h('span', { class: 'name' }, sessionName(s)),
+            h('span', { class: 'name', title: '더블클릭해서 이름 바꾸기' }, sessionName(s)),
             h('span', { class: 'state' }, STATUS_LABEL[s.status]),
             h(
               'button',
@@ -862,7 +899,7 @@ async function runUpdate() {
   updateStatus('세션을 잠시 닫는 중입니다…', 'running')
   const reopen = [...sessions.values()]
     .filter((s) => s.status !== 'exited')
-    .map((s) => ({ cwd: s.cwd, id: s.hadPrompt ? s.sessionId : undefined, name: s.name }))
+    .map((s) => ({ cwd: s.cwd, id: s.hadPrompt ? s.sessionId : undefined, name: s.name, named: s.named }))
   for (const s of [...sessions.values()]) {
     if (s.status === 'exited') removeSession(s.tab)
     else {
@@ -883,7 +920,7 @@ async function runUpdate() {
   const r = await api.updateClaude()
   const ok = !!r?.ok && (r.before !== r.after || updateAvailable === 'restart')
   if (ok) updateAvailable = false
-  for (const it of reopen) await openSession(it.cwd, it.id ? { id: it.id, name: it.name } : undefined)
+  for (const it of reopen) await openSession(it.cwd, it.id ? { id: it.id, name: it.name, named: it.named } : undefined)
   if (r?.note) updateStatus(`${r.note} 세션은 다시 열었습니다.`, 'fail')
   else if (!r || !r.ok) updateStatus('업데이트하지 못했습니다. 세션은 다시 열었습니다. 아래 기록을 확인해 주세요.', 'fail')
   else if (!ok) updateStatus(`새 버전이 설치되지 않았습니다 (${r.after || '?'}). 세션은 다시 열었습니다. 아래 기록을 확인해 주세요.`, 'fail')
@@ -961,9 +998,78 @@ function submit() {
   sendText(text)
   input.value = ''
   autosize()
+  closeSlash()
+  // 터미널에 화살표 메뉴·창을 여는 명령은 터미널로 포커스를 옮긴다(다음 Enter가 입력창에서 메뉴를 눌러 버리지 않게)
+  if (MENU_COMMANDS.test(text)) activeSession()?.term.focus()
 }
-input.addEventListener('input', autosize)
+
+// ── / 자동완성: 첫 글자가 /이고 아직 띄어 쓰지 않았을 때 입력창 위에 명령어를 띄운다 ──
+const slash = $('slash')
+const MENU_COMMANDS = /^\/(resume|rewind|model|config|agents|mcp|plugin|memory|export|login|status|usage|help|doctor|context)\s*$/
+let commands: SlashCommand[] = []
+let matches: SlashCommand[] = []
+let pick = 0
+let slashOn = false
+const slashQuery = () => input.value.match(/^\/(\S*)$/)?.[1]?.toLowerCase()
+function renderSlash() {
+  const q = slashOn ? slashQuery() : undefined
+  // 다 친 이름이 맨 앞(Enter로 바로 보내게), 그다음 앞에서부터 맞는 것, 그다음 중간에 들어 있는 것(notion-sync:init처럼 콜론 뒤를 쳐도 찾게)
+  const rank = (n: string) => (n === q ? 0 : n.startsWith(q!) ? 1 : n.includes(q!) ? 2 : 3)
+  matches = q == null ? [] : commands.filter((c) => rank(c.name.toLowerCase()) < 3).sort((a, b) => rank(a.name.toLowerCase()) - rank(b.name.toLowerCase()))
+  pick = Math.min(pick, Math.max(0, matches.length - 1))
+  slash.hidden = !matches.length
+  slash.replaceChildren(
+    ...matches.map((c, i) =>
+      h('li', { role: 'option', class: i === pick ? 'on' : '', 'aria-selected': i === pick ? 'true' : 'false', onclick: () => choose(c) }, h('b', {}, `/${c.name}`), c.desc && h('span', {}, c.desc)),
+    ),
+  )
+  slash.querySelector('.on')?.scrollIntoView({ block: 'nearest' })
+}
+function closeSlash() {
+  slashOn = false
+  renderSlash()
+}
+function choose(c: SlashCommand) {
+  input.value = `/${c.name} ` // 뒤에 내용을 더 적을 수 있게 한 칸 띄운다. 다시 Enter면 보낸다
+  autosize()
+  closeSlash()
+  input.focus()
+}
+input.addEventListener('input', () => {
+  autosize()
+  const on = slashQuery() != null
+  if (on && !slashOn) {
+    // 열 때마다 다시 읽는다(그사이 설치한 플러그인·스킬도 보이게). 읽는 동안은 지난 목록을 보인다.
+    const s = activeSession()
+    if (s) api.listCommands(s.cwd).then((list) => {
+      if (activeSession()?.cwd !== s.cwd) return // 그사이 다른 폴더 세션으로 옮겼다
+      commands = list
+      renderSlash()
+    }, () => {})
+  }
+  slashOn = on
+  pick = 0
+  renderSlash()
+})
+input.addEventListener('blur', closeSlash)
+slash.addEventListener('mousedown', (e) => e.preventDefault()) // 목록을 누르거나 스크롤바를 끌어도 입력창 포커스를 지킨다
 input.addEventListener('keydown', (e) => {
+  if (!slash.hidden && !e.isComposing && e.keyCode !== 229) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      pick = (pick + (e.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length
+      return renderSlash()
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      return closeSlash()
+    }
+    // Tab·Enter는 고른 명령을 채운다. 이미 그 명령을 다 쳤으면 Enter는 그대로 보낸다.
+    if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey && !(e.key === 'Enter' && input.value === `/${matches[pick].name}`)) {
+      e.preventDefault()
+      return choose(matches[pick])
+    }
+  }
   const s = activeSession()
   if (e.key === 'Escape' && !e.isComposing && s?.status === 'working') {
     e.preventDefault()
@@ -1140,7 +1246,7 @@ let restoring = true // 되살리는 동안에는 목록을 저장하지 않는�
 function persistSessions() {
   if (restoring) return
   const list = [...sessions.values()].filter((s) => s.status !== 'exited')
-  const saved = list.map((s) => ({ cwd: s.cwd, id: s.hadPrompt ? s.sessionId : undefined, name: s.name }))
+  const saved = list.map((s) => ({ cwd: s.cwd, id: s.hadPrompt ? s.sessionId : undefined, name: s.name, named: s.named }))
   const activeIndex = Math.max(0, list.findIndex((s) => s.tab === active))
   if (!changed('persist', [saved, activeIndex])) return
   saveConfig({ sessions: saved, active: activeIndex })
@@ -1153,7 +1259,7 @@ api.init().then(async (r) => {
   applyButtons(r)
   render()
   const saved = config.sessions ?? []
-  for (const it of saved) await openSession(it.cwd, it.id ? { id: it.id, name: it.name } : undefined)
+  for (const it of saved) await openSession(it.cwd, it.id ? { id: it.id, name: it.name, named: it.named } : undefined)
   const tabs = [...sessions.keys()]
   if (tabs.length) activate(tabs[Math.min(config.active ?? 0, tabs.length - 1)])
   restoring = false

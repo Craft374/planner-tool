@@ -26,6 +26,7 @@ const api: Api = {
   readInstructions: (cwd) => ipcRenderer.invoke('instructions:read', cwd),
   saveInstructions: (cwd, text) => ipcRenderer.invoke('instructions:save', cwd, text),
   instructionsTemplate: (role) => ipcRenderer.invoke('instructions:template', role),
+  listCommands: (cwd) => ipcRenderer.invoke('commands:list', cwd),
   onData: on('pty:data'),
   onExit: on('pty:exit'),
   onHook: on('hook'),

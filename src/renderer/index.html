@@ -42,9 +42,10 @@
       <!-- 입력 상자는 위로 자라며 터미널을 덮는다. 글을 쓰는 동안 터미널 크기가 바뀌지 않게 하기 위해서다. -->
       <div id="composer-slot">
         <form id="composer" autocomplete="off">
+          <ul id="slash" role="listbox" aria-label="명령어" hidden></ul>
           <div class="field">
             <textarea id="input" rows="1" placeholder="여기에 지시를 적습니다…" disabled></textarea>
-            <div class="hint">Enter 보내기 · Shift+Enter 줄바꿈</div>
+            <div class="hint">Enter 보내기 · Shift+Enter 줄바꿈 · / 명령어</div>
           </div>
           <button id="stop" type="button" title="지금 하는 작업을 멈춥니다 (Esc)" hidden>중단</button>
           <button id="send" type="submit" aria-label="보내기" disabled>

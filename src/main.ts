@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { SESSION_DEFAULTS as D, type Button, type Config, type HookEvent, type Role, type SetupItem, type Usage } from './shared'
+import { SESSION_DEFAULTS as D, type Button, type Config, type HookEvent, type Role, type SetupItem, type SlashCommand, type Usage } from './shared'
 
 // 원칙: main 프로세스에서는 동기 I/O(…Sync)와 sendSync를 쓰지 않는다. 화면이 멈추지 않게 하기 위해서다.
 
@@ -427,6 +427,68 @@ async function install(id: string) {
 }
 
 ipcMain.handle('setup:status', () => setupStatus())
+
+// ── 입력창 / 자동완성: Claude Code 기본 명령 + 사용자·프로젝트·켜진 플러그인의 명령과 스킬 ──
+// ponytail: 기본 명령은 손으로 고른 목록이다. Claude Code에 새 명령이 생기면 여기에 더한다.
+const BUILTIN: SlashCommand[] = [
+  ['clear', '대화를 비우고 새로 시작'],
+  ['compact', '지금까지 대화를 요약해 공간 확보'],
+  ['resume', '지난 대화 이어 하기'],
+  ['rewind', '이전 시점으로 되돌리기'],
+  ['model', '모델 바꾸기'],
+  ['context', '컨텍스트 사용량 보기'],
+  ['usage', '사용량·한도 보기'],
+  ['init', '이 폴더용 CLAUDE.md 만들기'],
+  ['memory', '메모리·지침 파일 열기'],
+  ['export', '대화 내보내기'],
+  ['agents', '서브에이전트 관리'],
+  ['mcp', 'MCP 서버 관리'],
+  ['plugin', '플러그인 관리'],
+  ['config', '설정'],
+  ['status', '버전·계정·연결 상태'],
+  ['doctor', '설치 상태 점검'],
+  ['login', '로그인'],
+  ['help', '도움말'],
+].map(([name, desc]) => ({ name, desc }))
+
+/** md 앞머리(---)의 description. 사용자가 부를 수 없는 스킬(user-invocable: false)이면 null */
+async function describe(file: string): Promise<string | null> {
+  const text = (await fs.readFile(file, 'utf8').catch(() => null))?.replace(/^\uFEFF/, '')
+  if (text == null) return null
+  const front = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? ''
+  if (/^user-invocable:\s*false\s*$/m.test(front)) return null
+  const block = front.match(/^description:\s*[>|][+-]?\s*\r?\n((?:[ \t]+.*(?:\r?\n|$))+)/m)?.[1] // 여러 줄 설명(> 또는 |)
+  const line = block ?? front.match(/^description:\s*(.*)$/m)?.[1] ?? ''
+  return line.replace(/\s+/g, ' ').trim().replace(/^(["'])(.*)\1$/, '$2').slice(0, 140)
+}
+
+/** dir/commands/*.md 와 dir/skills/<이름>/SKILL.md. prefix는 플러그인 이름(plugin:명령) */
+async function scanCommands(dir: string, prefix = ''): Promise<SlashCommand[]> {
+  const list = async (sub: string) => fs.readdir(path.join(dir, sub)).catch(() => [] as string[])
+  const found = [
+    ...(await list('commands')).filter((f) => f.endsWith('.md')).map((f) => [f.slice(0, -3), path.join(dir, 'commands', f)]),
+    ...(await list('skills')).map((d) => [d, path.join(dir, 'skills', d, 'SKILL.md')]),
+  ]
+  const out = await Promise.all(found.map(async ([name, file]) => ({ name: prefix + name, desc: await describe(file) })))
+  return out.filter((c): c is SlashCommand => c.desc != null)
+}
+
+ipcMain.handle('commands:list', async (_e, cwd: string) => {
+  const home = path.join(app.getPath('home'), '.claude')
+  // 사용자 → 프로젝트 → 로컬 설정 순으로 덮어쓴다
+  const settings = [path.join(home, 'settings.json'), path.join(cwd, '.claude', 'settings.json'), path.join(cwd, '.claude', 'settings.local.json')]
+  const enabled: Record<string, boolean> = Object.assign({}, ...(await Promise.all(settings.map((f) => readJson<{ enabledPlugins?: Record<string, boolean> }>(f, {})))).map((j) => j.enabledPlugins))
+  type Install = { scope?: string; projectPath?: string; installPath?: unknown }
+  const installed = (await readJson<{ plugins?: Record<string, Install[]> }>(path.join(home, 'plugins', 'installed_plugins.json'), {})).plugins ?? {}
+  const plugins = Object.keys(enabled).flatMap((id) => {
+    const list = Array.isArray(installed[id]) ? installed[id] : []
+    const it = list.find((e) => e.projectPath === cwd) ?? list.find((e) => e.scope === 'user') ?? list[0]
+    return enabled[id] && typeof it?.installPath === 'string' ? [scanCommands(it.installPath, `${id.split('@')[0]}:`)] : []
+  })
+  const all = (await Promise.all([scanCommands(path.join(cwd, '.claude')), scanCommands(home), ...plugins])).flat()
+  const seen = new Set<string>()
+  return [...all, ...BUILTIN].filter((c) => !seen.has(c.name) && seen.add(c.name)) // 같은 이름이면 프로젝트 > 사용자 > 플러그인 > 기본
+})
 ipcMain.handle('setup:install', (_e, id: string) => install(id))
 
 // ── Claude Code 업데이트 ──
