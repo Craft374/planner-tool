@@ -1,0 +1,48 @@
+{
+  "name": "planner-tool",
+  "productName": "기획 도우미",
+  "version": "0.1.0",
+  "description": "기획자용 Claude Code 프로그램",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "postinstall": "node -e \"for (const d of require('fs').readdirSync('node_modules/node-pty/prebuilds')) try { require('fs').chmodSync('node_modules/node-pty/prebuilds/' + d + '/spawn-helper', 0o755) } catch {}\"",
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "typecheck": "tsc --noEmit",
+    "dist:mac": "node build.mjs && electron-builder --mac",
+    "dist:win": "node build.mjs && electron-builder --win"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.0"
+  },
+  "build": {
+    "appId": "com.ljw.planner-tool",
+    "productName": "PlannerTool",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "package.json"],
+    "extraResources": [{ "from": "resources", "to": "resources" }],
+    "asarUnpack": ["node_modules/node-pty/**"],
+    "npmRebuild": false,
+    "electronLanguages": ["ko", "en"],
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "extendInfo": { "CFBundleDisplayName": "기획 도우미" }
+    },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.png" },
+    "nsis": { "shortcutName": "기획 도우미", "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}

@@ -1,0 +1,11 @@
+#!/bin/sh
+# macOS / Linux / Windows(Git Bash) 공용 실행기. Python 3.11+ 를 찾아 엔진을 실행한다.
+ROOT="$(cd "$(dirname "$0")/.." && (pwd -W 2>/dev/null || pwd))"
+for PY in python3 python py; do
+  # Windows 의 python3 는 Microsoft Store 안내 스텁일 수 있으므로 버전까지 확인
+  if command -v "$PY" >/dev/null 2>&1 && "$PY" -c 'import sys; sys.exit(sys.version_info < (3, 11))' >/dev/null 2>&1; then
+    exec "$PY" "$ROOT/notion_sync/__main__.py" "$@"
+  fi
+done
+echo "오류: Python 3.11 이상이 필요합니다. https://www.python.org/downloads/ 에서 설치하세요." >&2
+exit 1

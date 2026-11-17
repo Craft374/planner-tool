@@ -1,0 +1,11 @@
+{
+  "name": "notion-sync-local",
+  "owner": { "name": "jeongwoo" },
+  "plugins": [
+    {
+      "name": "notion-sync",
+      "source": "./",
+      "description": "공개 Notion 링크로 기획 문서를 로컬 Markdown으로 동기화합니다."
+    }
+  ]
+}

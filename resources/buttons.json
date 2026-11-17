@@ -1,0 +1,27 @@
+{
+  "plan": [
+    {"label": "작업 커밋", "text": "작업 커밋: 변경된 파일과 diff를 확인하고, 지침의 Git 규칙대로 이번 작업과 관련된 변경만 커밋한 뒤 푸시해 줘."},
+    {"label": "노션 연결 (처음 한 번)", "text": "/notion-sync:init"},
+    {"label": "노션 동기화", "text": "/notion-sync:sync"},
+    {"label": "기획서 요약 갱신", "text": "기획서 요약 갱신: `.notion-sync/CHANGELOG.md`에서 최근 동기화로 바뀐 문서만 확인해 `Docs/기획서_요약.md`의 해당 항목만 문서당 3줄 이내로 고쳐 줘. 요약 파일이 없으면 `Docs/Notion/` 전체 목록과 문서별 3줄 요약으로 만들어 줘."},
+    {"label": "노션에 반영", "text": "노션에 반영: `notion-sync status`에서 \"로컬 수정됨\"으로 나오는 문서만 Notion MCP로 바뀐 부분만 반영해 줘. 노션에 아직 없는 새 기획 md는 올릴지 먼저 물어봐 줘. 반영한 뒤 `notion-sync sync`를 실행하고, 반영한 문서가 CONFLICT로 나오면 출력에 적힌 Notion 최신본과 로컬 파일을 비교해 줘. 내 수정이 최신본에 다 들어가 있으면 그 파일을 최신본으로 바꾸고 다시 sync하고, 빠진 부분이 있으면 바꾸지 말고 무엇이 빠졌는지 알려 줘."},
+    {"label": "고급 검수", "text": "고급 검수: 이번 작업에서 바뀐 내용을 git diff로 확인하고, model을 opus로 지정한 서브에이전트에게 검수를 맡겨 줘. 문제가 있으면 그 부분만 고쳐 줘."},
+    {"label": "포니테일 리뷰", "text": "/ponytail:ponytail-review"},
+    {"label": "개발용 기획서로 변환", "text": "지금 기획서를 개발자가 바로 쓸 수 있는 개발용 기획서로 변환해 줘."},
+    {"label": "지난 작업 이어 하기", "text": "/resume"},
+    {"label": "지금 압축", "text": "/compact"}
+  ],
+  "dev": [
+    {"label": "작업 커밋", "text": "작업 커밋: 변경된 파일과 diff를 확인하고, 지침의 Git 규칙대로 이번 작업과 관련된 변경만 커밋한 뒤 푸시해 줘."},
+    {"label": "구현 계획", "text": "구현 계획: 관련 기획서(Docs/Notion)와 코드를 필요한 만큼만 읽고, 바꿀 파일·순서·위험한 부분을 먼저 정리해 줘. 승인하기 전에는 코드를 고치지 마."},
+    {"label": "노션 연결 (처음 한 번)", "text": "/notion-sync:init"},
+    {"label": "노션 동기화", "text": "/notion-sync:sync"},
+    {"label": "기획 변경 영향", "text": "/notion-sync:impact"},
+    {"label": "유니티 오류 확인", "text": "유니티 오류 확인: Unity Editor.log(macOS ~/Library/Logs/Unity/Editor.log, Windows %LOCALAPPDATA%\\Unity\\Editor\\Editor.log)의 끝부분에서 최근 컴파일 오류와 예외만 찾아 원인과 수정안을 알려 줘. 고치기 전에 먼저 보여 줘."},
+    {"label": "변경 리뷰", "text": "/code-review"},
+    {"label": "고급 검수", "text": "고급 검수: 이번 작업에서 바뀐 내용을 git diff로 확인하고, model을 opus로 지정한 서브에이전트에게 검수를 맡겨 줘. 문제가 있으면 그 부분만 고쳐 줘."},
+    {"label": "포니테일 리뷰", "text": "/ponytail:ponytail-review"},
+    {"label": "지난 작업 이어 하기", "text": "/resume"},
+    {"label": "지금 압축", "text": "/compact"}
+  ]
+}

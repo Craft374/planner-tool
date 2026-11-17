@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+  <title>기획 도우미</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="drag side-top">
+        <div id="roles" class="segmented roles" role="tablist" aria-label="기획·개발"></div>
+      </div>
+      <div class="side-head">
+        <h2>세션</h2>
+        <button id="open-folder" class="pill">새 폴더 열기</button>
+      </div>
+      <nav id="folders" aria-label="세션 목록"></nav>
+      <button id="open-tour" class="side-foot">사용법</button>
+    </aside>
+
+    <main id="main">
+      <header id="header" class="drag">
+        <div id="crumb" class="crumb"></div>
+        <h1 id="title"></h1>
+        <div class="subtitle-row">
+          <div id="subtitle" class="subtitle"></div>
+          <div id="notice" class="notice" role="status" hidden></div>
+        </div>
+      </header>
+      <div id="stage">
+        <div id="terms"></div>
+      </div>
+      <section id="empty" class="empty">
+        <img src="logo.svg" alt="" width="88" height="88">
+        <h2>폴더를 골라 시작합니다</h2>
+        <p id="empty-desc">웹게임 폴더를 열면 그 폴더에서 Claude가 작업합니다.</p>
+        <button id="empty-open" class="primary">폴더 열기</button>
+        <p id="empty-error" class="error" hidden></p>
+      </section>
+      <!-- 입력 상자는 위로 자라며 터미널을 덮는다. 글을 쓰는 동안 터미널 크기가 바뀌지 않게 하기 위해서다. -->
+      <div id="composer-slot">
+        <form id="composer" autocomplete="off">
+          <div class="field">
+            <textarea id="input" rows="1" placeholder="여기에 지시를 적습니다…" disabled></textarea>
+            <div class="hint">Enter 보내기 · Shift+Enter 줄바꿈</div>
+          </div>
+          <button id="stop" type="button" title="지금 하는 작업을 멈춥니다 (Esc)" hidden>중단</button>
+          <button id="send" type="submit" aria-label="보내기" disabled>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </form>
+      </div>
+    </main>
+
+    <aside id="inspector">
+      <div class="drag inspector-top"></div>
+      <div class="inspector-body">
+      <section id="update-card" class="card update" hidden>
+        <div class="card-head"><h3>Claude Code 업데이트</h3></div>
+        <p id="update-note"></p>
+        <p id="update-status" class="update-status" hidden></p>
+        <pre id="update-log" class="update-log" hidden></pre>
+        <button id="update-run" class="primary small">업데이트</button>
+      </section>
+      <section class="card gauge">
+        <h3>컨텍스트</h3>
+        <div class="gauge-top"><span id="pct" class="pct">–</span><span id="pct-label" class="pct-label"></span></div>
+        <div class="bar"><div id="fill" class="fill"></div><i class="tick" style="left:60%"></i><i class="tick" style="left:75%"></i></div>
+        <div class="scale"><span>0</span><span>100</span></div>
+        <p id="ctx-detail" class="note"></p>
+        <p id="turn-cost" class="note turn-cost" hidden></p>
+        <p id="cache" class="cache" hidden></p>
+        <button id="new-session" class="btn wide" disabled>같은 폴더에 새 세션</button>
+        <p class="note">대화가 길어지면 새 세션이 압축보다 사용량이 적습니다</p>
+      </section>
+
+      <section class="card limits">
+        <h3>사용 한도 (계정 전체)</h3>
+        <div id="five-row" class="limit" hidden>
+          <div class="limit-head"><span>5시간</span><b id="five-pct"></b></div>
+          <div class="mini-bar"><div id="five-fill"></div></div>
+          <p id="five-reset" class="note"></p>
+        </div>
+        <div id="week-row" class="limit" hidden>
+          <div class="limit-head"><span>주간</span><b id="week-pct"></b></div>
+          <div class="mini-bar"><div id="week-fill"></div></div>
+          <p id="week-reset" class="note"></p>
+        </div>
+        <p id="limits-empty" class="muted">세션에서 첫 응답이 오면 보입니다</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>버튼</h3><button id="edit-buttons" class="link">편집</button></div>
+        <div id="buttons" class="buttons"></div>
+      </section>
+
+      <section class="card">
+        <h3>도는 에이전트</h3>
+        <div id="agents" class="agents"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>지침</h3><button id="edit-instructions" class="link" disabled>편집</button></div>
+        <p id="instructions-state" class="muted">세션을 열면 이 폴더의 지침을 보여 줍니다</p>
+        <button id="add-instructions" class="btn wide" hidden>기본 지침 넣기</button>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>모델과 생각</h3></div>
+        <div class="field-row"><span>모델</span></div>
+        <div id="models" class="segmented" role="radiogroup" aria-label="모델"></div>
+        <p id="model-desc" class="desc"></p>
+        <div class="field-row"><span>생각 수준</span><b id="effort-label"></b></div>
+        <input id="effort" class="slider" type="range" min="0" max="4" step="1" aria-label="생각 수준">
+        <div class="slider-scale"><span>낮음</span><span>최대</span></div>
+        <p id="effort-desc" class="desc"></p>
+        <div class="field-row"><span>어드바이저</span></div>
+        <div id="advisors" class="segmented four" role="radiogroup" aria-label="어드바이저"></div>
+        <p id="advisor-desc" class="desc"></p>
+        <p class="note">어드바이저: 중요한 순간에만 더 강한 모델에게 묻습니다. 여기서 바꾼 값은 이 세션에만 적용되고, 새 세션은 늘 Sonnet + 어드바이저 Opus로 시작합니다.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>작업 방식</h3><button id="open-setup" class="link">플러그인 관리</button></div>
+        <div class="field-row"><span>모드</span></div>
+        <div id="modes" class="segmented" role="radiogroup" aria-label="모드"></div>
+        <p id="mode-desc" class="desc"></p>
+        <label class="toggle-row"><span>울트라코드</span><button id="ultracode" class="switch" role="switch" aria-label="울트라코드"></button></label>
+        <p class="desc">여러 에이전트로 꼼꼼하게 · 사용량 많음</p>
+        <label class="toggle-row"><span>자동 압축 일찍 하기</span><button id="auto-compact" class="switch" role="switch" aria-label="자동 압축 일찍 하기"></button></label>
+        <p class="desc">80%에서 스스로 요약 · 새 세션부터</p>
+      </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 지침 편집: 작업을 잠시 멈추고 집중하는 일이라 화면을 어둡게 하고 가운데에 띄운다 -->
+  <div id="sheet-scrim" class="scrim" hidden>
+    <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <header>
+        <div>
+          <h2 id="sheet-title">지침</h2>
+          <p id="sheet-path" class="crumb"></p>
+        </div>
+      </header>
+      <textarea id="sheet-text" spellcheck="false"></textarea>
+      <footer>
+        <p class="note">이 PC에서만 쓰는 개인 지침입니다(git에 올라가지 않음). 새 세션부터 적용됩니다.</p>
+        <button id="sheet-cancel" class="pill">취소</button>
+        <button id="sheet-save" class="primary small">저장</button>
+      </footer>
+    </div>
+  </div>
+  <!-- 사용법 안내: 밝힌 곳 바깥을 어둡게 하고, 오른쪽 아래 카드에서 한 단계씩 넘긴다 -->
+  <div id="tour" hidden>
+    <div id="tour-spot"></div>
+    <div id="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <header><h2 id="tour-title"></h2><button id="tour-close" class="tour-x" aria-label="안내 닫기">×</button></header>
+      <div id="tour-body"></div>
+      <footer>
+        <button id="tour-prev" class="tour-nav" aria-label="이전">←</button>
+        <div class="tour-meter"><div class="tour-track"><div id="tour-progress"></div></div><span id="tour-count"></span></div>
+        <button id="tour-next" class="tour-nav primary-nav" aria-label="다음">→</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 플러그인 설치: 첫 실행 때 한 번 뜨고, 그 뒤에는 '플러그인 관리'로 연다 -->
+  <div id="setup-scrim" class="scrim" hidden>
+    <div id="setup" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+      <header>
+        <h2 id="setup-title">플러그인 설치</h2>
+        <p class="crumb">Claude에 한 번 설치하면 모든 폴더에서 쓸 수 있습니다. 설치에는 Claude 사용량이 들지 않습니다.</p>
+      </header>
+      <div id="setup-list" class="setup-list"></div>
+      <footer>
+        <button id="setup-close" class="pill">닫기</button>
+        <button id="setup-all" class="primary small">모두 설치</button>
+      </footer>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

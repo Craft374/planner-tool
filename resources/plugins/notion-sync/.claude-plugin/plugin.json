@@ -1,0 +1,9 @@
+{
+  "name": "notion-sync",
+  "displayName": "Notion Sync",
+  "version": "1.1.0",
+  "description": "Notion 기획 문서를 로컬 Markdown으로 단방향 동기화하고 Git 스타일 변경 이력을 남깁니다.",
+  "author": { "name": "jeongwoo" },
+  "license": "MIT",
+  "keywords": ["notion", "sync", "markdown", "unity", "gamedev"]
+}
