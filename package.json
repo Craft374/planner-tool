@@ -1,7 +1,7 @@
 {
   "name": "planner-tool",
   "productName": "기획 도우미",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "기획자용 Claude Code 프로그램",
   "private": true,
   "main": "dist/main.js",
@@ -38,6 +38,8 @@
     "electronLanguages": ["ko", "en"],
     "mac": {
       "target": "dmg",
+      "identity": "-",
+      "hardenedRuntime": false,
       "icon": "build/icon.png",
       "category": "public.app-category.developer-tools",
       "extendInfo": { "CFBundleDisplayName": "기획 도우미" }
